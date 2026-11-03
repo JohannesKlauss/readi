@@ -2,6 +2,13 @@ import {R} from "@praha/byethrow";
 
 type Reader<R, A> = (deps: R) => A
 
+// const getUsersPosts = (user: User) => read(({findForUser, logger}: GetUsersPostsDeps) => R.pipe(...)
+function read<R, A>(
+  run: Reader<R, A>,
+): Reader<R, A> {
+  return run;
+}
+
 function andThen<A, R2, B, E2>(fn: (value: A) => Reader<R2, R.ResultMaybeAsync<B, E2>>) {
   return <R1, E1>(reader: Reader<R1, R.ResultMaybeAsync<A, E1>>): Reader<R1 & R2, R.ResultMaybeAsync<B, E1 | E2>> =>
     deps => R.pipe(
