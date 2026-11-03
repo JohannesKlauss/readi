@@ -1,34 +1,21 @@
 import {R} from "@praha/byethrow";
-import {isPromise} from "node:util/types";
 
 type Reader<R, A> = (deps: R) => A
 
-type InferR<R>
-  = [R] extends [(...args: any[]) => Reader<infer U, any>] ? U
-  : [R] extends [Reader<infer U, any>] ? U
-    : never;
-
-type InferA<R>
-  = [R] extends [(...args: any[]) => Reader<any, infer U>] ? U
-  : [R] extends [Reader<any, infer U>] ? U
-    : never;
-
-function andThen<R1 extends Reader<any, any>, R2 extends Reader<any, any>>(fn: (a: InferR<R1>) => R2): (result: R1) => Reader<InferR<R1> | InferR<R2>, InferA<R2>>;
-function andThen<R1 extends Reader<any, any>, R2 extends Reader<any, any>>(fn: (a: InferR<R1>) => R2) {
-  return (reader: R1) => {
-    const apply = (r: R1) => {
-      return fn(r);
-    };
-
-    return apply(reader);
-  };
+function andThen<A, R2, B, E2>(fn: (value: A) => Reader<R2, R.ResultMaybeAsync<B, E2>>) {
+  return <R1, E1>(reader: Reader<R1, R.ResultMaybeAsync<A, E1>>): Reader<R1 & R2, R.ResultMaybeAsync<B, E1 | E2>> =>
+    deps => R.pipe(
+      reader(deps),
+      R.andThen((value: A) => fn(value)(deps)),
+    )
 }
 
-export function fn() {
-  return R.pipe(
-    getUser("id1"),
-    andThen(getUsersPosts),
-  )
+function map<A, B>(fn: (value: A) => B) {
+  return <R1, E>(reader: Reader<R1, R.ResultMaybeAsync<A, E>>): Reader<R1, R.ResultMaybeAsync<B, E>> =>
+    deps => R.pipe(
+      reader(deps),
+      R.map((value: A) => fn(value))
+    )
 }
 
 type User = {
@@ -57,7 +44,12 @@ type Logger = {
   debug: (msg: string) => void
 }
 
-const getUser = (userId: string): Reader<[UserRepo['getById'], Logger], R.ResultAsync<User, "UserTooYoung" | "UserNotFound">> => ([getById, logger]) => {
+type GetUserDeps = {
+  getById: UserRepo['getById'],
+  logger: Logger,
+}
+
+const getUser = (userId: string): Reader<GetUserDeps, R.ResultAsync<User, "UserTooYoung" | "UserNotFound">> => ({getById, logger}) => {
   return R.pipe(
     getById(userId),
     R.inspect(user => logger.debug(`found ${user.name}`)),
@@ -65,7 +57,12 @@ const getUser = (userId: string): Reader<[UserRepo['getById'], Logger], R.Result
   )
 }
 
-const getUsersPosts = (user: User): Reader<[PostRepo['findForUser'], Logger], R.ResultAsync<Post[], "EmptyPosts" | "PostsNotFound">> => ([findForUser, logger]) => {
+type GetUsersPostsDeps = {
+  findForUser: PostRepo['findForUser'],
+  logger: Logger
+}
+
+const getUsersPosts = (user: User): Reader<GetUsersPostsDeps, R.ResultAsync<Post[], "EmptyPosts" | "PostsNotFound">> => ({findForUser, logger}) => {
   return R.pipe(
     findForUser(user.id),
     R.inspect(posts => logger.debug(`found ${posts.length} posts`)),
@@ -73,3 +70,8 @@ const getUsersPosts = (user: User): Reader<[PostRepo['findForUser'], Logger], R.
   )
 }
 
+const runProgram = R.pipe(
+  getUser("id1"),
+  andThen(getUsersPosts),
+  map(posts => posts.length)
+)
