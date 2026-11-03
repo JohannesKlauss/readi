@@ -70,7 +70,7 @@ const getUsersPosts = (user: User): Reader<GetUsersPostsDeps, R.ResultAsync<Post
   )
 }
 
-const runProgram = R.pipe(
+export const runProgram = R.pipe(
   getUser("id1"),
   andThen(getUsersPosts),
   map(posts => posts.length)
