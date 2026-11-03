@@ -15,19 +15,19 @@ type InferA<R>
 
 function andThen<R1 extends Reader<any, any>, R2 extends Reader<any, any>>(fn: (a: InferR<R1>) => R2): (result: R1) => Reader<InferR<R1> | InferR<R2>, InferA<R2>>;
 function andThen<R1 extends Reader<any, any>, R2 extends Reader<any, any>>(fn: (a: InferR<R1>) => R2) {
-  return (result: R1) => {
-    const apply = (r: InferR<R1>) => {
+  return (reader: R1) => {
+    const apply = (r: R1) => {
       return fn(r);
     };
 
-    return isPromise(result) ? result.then(apply) : apply(result);
+    return apply(reader);
   };
 }
 
 export function fn() {
   return R.pipe(
     getUser("id1"),
-    R.andThen(getUsersPosts),
+    andThen(getUsersPosts),
   )
 }
 
